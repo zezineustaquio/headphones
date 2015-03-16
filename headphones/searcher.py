@@ -163,6 +163,8 @@ def get_seed_ratio(provider):
         seed_ratio = headphones.CONFIG.PIRATEBAY_RATIO
     elif provider == 'Old Pirate Bay':
         seed_ratio = headphones.CONFIG.OLDPIRATEBAY_RATIO
+    elif provider == 'Manicomio Share':
+        seed_ratio = headphones.CONFIG.MANICOMIOSHARE_RATIO
     elif provider == 'Waffles.fm':
         seed_ratio = headphones.CONFIG.WAFFLES_RATIO
     elif provider == 'Mininova':
@@ -219,7 +221,7 @@ def do_sorted_search(album, new, losslessOnly, choose_specific_download=False):
 
     NZB_PROVIDERS = (headphones.CONFIG.HEADPHONES_INDEXER or headphones.CONFIG.NEWZNAB or headphones.CONFIG.NZBSORG or headphones.CONFIG.OMGWTFNZBS)
     NZB_DOWNLOADERS = (headphones.CONFIG.SAB_HOST or headphones.CONFIG.BLACKHOLE_DIR or headphones.CONFIG.NZBGET_HOST)
-    TORRENT_PROVIDERS = (headphones.CONFIG.KAT or headphones.CONFIG.PIRATEBAY or headphones.CONFIG.OLDPIRATEBAY or headphones.CONFIG.MININOVA or headphones.CONFIG.WAFFLES or headphones.CONFIG.RUTRACKER or headphones.CONFIG.WHATCD)
+    TORRENT_PROVIDERS = (headphones.CONFIG.KAT or headphones.CONFIG.PIRATEBAY or headphones.CONFIG.OLDPIRATEBAY or headphones.CONFIG.MANICOMIOSHARE or headphones.CONFIG.MININOVA or headphones.CONFIG.WAFFLES or headphones.CONFIG.RUTRACKER or headphones.CONFIG.WHATCD)
 
     results = []
     myDB = db.DBConnection()
@@ -932,9 +934,15 @@ def send_to_downloader(data, bestqual, album):
         pushalot = notifiers.PUSHALOT()
         pushalot.notify(name, "Download started")
     if headphones.CONFIG.OSX_NOTIFY_ENABLED and headphones.CONFIG.OSX_NOTIFY_ONSNATCH:
+        from headphones import cache
+        c = cache.Cache()
+        album_art = c.get_artwork_from_cache(None, rgid)
         logger.info(u"Sending OS X notification")
         osx_notify = notifiers.OSX_NOTIFY()
-        osx_notify.notify(artist, albumname, 'Snatched: ' + provider + '. ' + name)
+        osx_notify.notify(artist,
+                          albumname,
+                          'Snatched: ' + provider + '. ' + name,
+                          image=album_art)
     if headphones.CONFIG.BOXCAR_ENABLED and headphones.CONFIG.BOXCAR_ONSNATCH:
         logger.info(u"Sending Boxcar2 notification")
         b2msg = 'From ' + provider + '<br></br>' + name
@@ -1086,7 +1094,7 @@ def searchTorrent(album, new=False, losslessOnly=False, albumlength=None):
         if headphones.CONFIG.KAT_PROXY_URL:
             providerurl = fix_url(set_proxy(headphones.CONFIG.KAT_PROXY_URL))
         else:
-            providerurl = fix_url("https://kickass.so")
+            providerurl = fix_url("http://kickass.so")
 
         # Build URL
         providerurl = providerurl + "/usearch/" + ka_term
@@ -1404,6 +1412,11 @@ def searchTorrent(album, new=False, losslessOnly=False, albumlength=None):
         provider = "Old Pirate Bay"
         tpb_term = term.replace("!", "")
 
+        # Use proxy if specified
+        if headphones.CONFIG.OLDPIRATEBAY_URL:
+            providerurl = fix_url(set_proxy(headphones.CONFIG.OLDPIRATEBAY_URL))
+        else:
+            providerurl = fix_url("http://oldpiratebay.org")
         # Pick category for torrents
         if headphones.CONFIG.PREFERRED_QUALITY == 3 or losslessOnly:
             maxsize = 10000000000
@@ -1416,7 +1429,7 @@ def searchTorrent(album, new=False, losslessOnly=False, albumlength=None):
         logger.info("Parsing results from Old Pirate Bay")
 
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2243.2 Safari/537.36'}
-        provider_url = fix_url(headphones.CONFIG.OLDPIRATEBAY_URL) + \
+        provider_url = providerurl + \
             "/search.php?" + urllib.urlencode({"q": tpb_term, "iht": 6})
 
         data = request.request_soup(url=provider_url, headers=headers)
@@ -1451,6 +1464,72 @@ def searchTorrent(album, new=False, losslessOnly=False, albumlength=None):
                     except Exception as e:
                         logger.error(u"An unknown error occurred in the Old Pirate Bay parser: %s" % e)
 
+    # Manicomio Share
+    if headphones.CONFIG.MANICOMIOSHARE:
+        provider = "Manicomio Share"
+        tpb_term = term.replace("!", "")
+
+        # Use proxy if specified
+        if headphones.CONFIG.MANICOMIOSHARE_PROXY_URL:
+            providerurl = fix_url(set_proxy(headphones.CONFIG.MANICOMIOSHARE_PROXY_URL))
+        else:
+            providerurl = fix_url("http://www.manicomio-share.com")
+
+        # Build URL
+        providerurl = providerurl + "/pesquisa.php?busca=" + tpb_term + "&order=desc&sort=seeders" # Order By Seeders DESC
+
+        # Pick category for torrents
+        category = '&c51=1&c53=1&c103=1&c54=1&c102=1&c55=1&c135=1&c52=1&c56=1&c57=1&c58=1&c117=1&c59=1&c60=1&c61=1&c90=1&c175=1&c86=1&c63=1&c64=1&c94=1&c65=1&c66=1&c109=1&c67=1&c89=1&c68=1&c69=1&c70=1&c71=1&c72=1&c73=1&c74=1&c98=1&c110=1&c92=1&c91=1&c75=1&c93=1&c111=1' # FLAC
+        maxsize = 10000000000
+        
+        # Request content
+        logger.info("Searching The Manicomio Share using term: %s", tpb_term)
+
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+
+        cookies = {
+                    'uid': headphones.CONFIG.MANICOMIOSHARE_UID, 
+                    'pass': headphones.CONFIG.MANICOMIOSHARE_PASSKEY
+                  }
+
+        data = request.request_soup(url=providerurl + category, headers=headers, cookies=cookies)
+
+        # Process content
+        if data:
+            rows = data.select('#closest')
+
+            if not rows:
+                logger.info("No results found")
+            else:
+                for item in rows:
+                    try:
+                        url = None
+                        rightformat = True
+                        title = ''.join(item.select('td')[1].find('a').attrs[u'title'])
+                        seeds = int(''.join(item.find('span',{'class','h3o'}).find('font').contents))
+
+                        try:
+                            url = item.find("a", {"class": "btn btn-default btn-xs"})['href']
+                        except TypeError:
+                            logger.info('"%s" only has a magnet link, skipping' % title)
+                            continue
+                        
+                        if url.lower().startswith("//"):
+                            url = "http:" + url
+
+                        formatted_size = ''.join(item.select('td')[6].find('span').contents)
+                        size = helpers.piratesize(formatted_size)
+
+                        if size < maxsize and minimumseeders < seeds and url is not None:
+                            match = True
+                            logger.info('Found %s. Size: %s' % (title, formatted_size))
+                        else:
+                            match = False
+                            logger.info('%s is larger than the maxsize or has too little seeders for this category, skipping. (Size: %i bytes, Seeders: %i)' % (title, size, int(seeds)))
+
+                        resultlist.append((title, size, url, provider, "torrent", match))
+                    except Exception as e:
+                        logger.error(u"An unknown error occurred in the Pirate Bay parser: %s" % e)
     # Mininova
     if headphones.CONFIG.MININOVA:
         provider = "Mininova"
@@ -1539,6 +1618,7 @@ def preprocess(resultlist):
 
             # Download the torrent file
             headers = {}
+            cookies = {}
 
             if result[3] == 'Kick Ass Torrents':
                 headers['Referer'] = 'http://kat.ph/'
@@ -1546,7 +1626,11 @@ def preprocess(resultlist):
                 headers['User-Agent'] = 'Headphones'
             elif result[3] == "The Pirate Bay" or result[3] == "Old Pirate Bay":
                 headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2243.2 Safari/537.36'
-            return request.request_content(url=result[2], headers=headers), result
+            elif result[3] == 'Manicomio Share':
+                cookies = { 'uid': headphones.CONFIG.MANICOMIOSHARE_UID, 
+                            'pass': headphones.CONFIG.MANICOMIOSHARE_PASSKEY
+                          }
+            return request.request_content(url=result[2], headers=headers, cookies=cookies), result
 
         else:
             headers = {'User-Agent': USER_AGENT}

@@ -255,6 +255,18 @@ class WebInterface(object):
         raise cherrypy.HTTPRedirect("home")
 
     @cherrypy.expose
+    def scanArtist(self, ArtistID):
+        logger.info(u"Scanning artist: %s", ArtistID)
+        myDB = db.DBConnection()
+        artistname = myDB.select('SELECT DISTINCT ArtistName FROM artists WHERE ArtistID=?', [ArtistID])
+        artistfolder = os.path.join(headphones.CONFIG.DESTINATION_DIR, artistname[0][0])
+        try:
+            threading.Thread(target=librarysync.libraryScan(dir=artistfolder)).start()
+        except Exception as e:
+            logger.error('Unable to complete the scan: %s', e)
+        raise cherrypy.HTTPRedirect("artistPage?ArtistID=%s" % ArtistID)
+
+    @cherrypy.expose
     def deleteEmptyArtists(self):
         logger.info(u"Deleting all empty artists")
         myDB = db.DBConnection()
@@ -1001,6 +1013,11 @@ class WebInterface(object):
             "use_oldpiratebay": checked(headphones.CONFIG.OLDPIRATEBAY),
             "oldpiratebay_url": headphones.CONFIG.OLDPIRATEBAY_URL,
             "oldpiratebay_ratio": headphones.CONFIG.OLDPIRATEBAY_RATIO,
+            "use_manicomioshare": checked(headphones.CONFIG.MANICOMIOSHARE),
+            "manicomioshare_proxy_url": headphones.CONFIG.MANICOMIOSHARE_PROXY_URL,
+            "manicomioshare_ratio": headphones.CONFIG.MANICOMIOSHARE_RATIO,
+            "manicomioshare_uid": headphones.CONFIG.MANICOMIOSHARE_UID,
+            "manicomioshare_passkey": headphones.CONFIG.MANICOMIOSHARE_PASSKEY,
             "use_mininova": checked(headphones.CONFIG.MININOVA),
             "mininova_ratio": headphones.CONFIG.MININOVA_RATIO,
             "use_waffles": checked(headphones.CONFIG.WAFFLES),
@@ -1175,7 +1192,7 @@ class WebInterface(object):
 
         checked_configs = [
             "launch_browser", "enable_https", "api_enabled", "use_blackhole", "headphones_indexer", "use_newznab", "newznab_enabled",
-            "use_nzbsorg", "use_omgwtfnzbs", "use_kat", "use_piratebay", "use_oldpiratebay", "use_mininova", "use_waffles", "use_rutracker",
+            "use_nzbsorg", "use_omgwtfnzbs", "use_kat", "use_piratebay", "use_oldpiratebay", "use_manicomioshare", "use_mininova", "use_waffles", "use_rutracker",
             "use_whatcd", "preferred_bitrate_allow_lossless", "detect_bitrate", "freeze_db", "cue_split", "move_files", "rename_files",
             "correct_metadata", "cleanup_files", "keep_nfo", "add_album_art", "embed_album_art", "embed_lyrics", "replace_existing_folders",
             "file_underscores", "include_extras", "autowant_upcoming", "autowant_all", "autowant_manually_added", "keep_torrent_files", "music_encoder",
